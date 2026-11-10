@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
+<title>IOC Extractor</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #1c2128;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #2f81f7;
+  --accent-hover: #4c94f8;
+  --ok: #3fb950;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+* { box-sizing: border-box; }
+html { color-scheme: dark; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+.top { padding: 14px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+h1 { font-size: 26px; margin: 24px 0 4px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 16px; }
+textarea {
+  width: 100%; min-height: 180px; resize: vertical; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; padding: 10px; font: 13px/1.5 var(--mono);
+}
+textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.row.opts { gap: 18px; color: var(--muted); font-size: 14px; }
+.opts label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+button {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 12px; font: inherit; font-size: 14px; cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:hover { background: var(--accent-hover); }
+button:disabled { opacity: .5; cursor: default; }
+.spacer { flex: 1; }
+.summary { color: var(--muted); font-size: 14px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; min-width: 0; }
+.card.empty { opacity: .6; }
+.card h2 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.badge { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 0 8px; font-size: 12px; color: var(--muted); }
+.card button { padding: 2px 10px; font-size: 12px; }
+ul.list { list-style: none; margin: 0; padding: 8px 12px; max-height: 260px; overflow: auto; font: 13px/1.6 var(--mono); }
+ul.list li { overflow-wrap: anywhere; }
+ul.list li.none { color: var(--muted); font-family: inherit; }
+.out h2 { font-size: 15px; margin: 0 0 8px; }
+.out textarea { min-height: 120px; }
+footer { border-top: 1px solid var(--border); margin-top: 32px; padding: 18px 0 32px; color: var(--muted); font-size: 14px; }
+.toast { color: var(--ok); font-size: 13px; min-height: 1.2em; }
+</style>
+</head>
+<body>
+<div class="top"><div class="wrap"><a id="home-link" href="#">← Back to portfolio</a></div></div>
+<main class="wrap">
+  <h1>IOC Extractor</h1>
+  <p class="sub">Paste text (report, email, log) and get indicators of compromise. Everything runs locally in your browser; no data is sent anywhere.</p>
+
+  <section class="panel">
+    <textarea id="input" spellcheck="false" placeholder="Paste text here…"></textarea>
+    <div class="row">
+      <button id="btn-sample" class="primary">Sample</button>
+      <button id="btn-clear">Clear</button>
+      <span class="spacer"></span>
+      <button id="btn-defang">Defang text</button>
+      <button id="btn-refang">Refang text</button>
+    </div>
+    <div class="row opts">
+      <label><input type="checkbox" id="opt-private"> Hide private IPs</label>
+      <label><input type="checkbox" id="opt-defanged"> Show results defanged</label>
+    </div>
+  </section>
+
+  <section class="panel out" id="out-panel" hidden>
+    <h2 id="out-title">Result</h2>
+    <textarea id="out-text" readonly spellcheck="false"></textarea>
+    <div class="row"><button id="btn-copy-out">Copy</button><span class="toast" id="toast-out"></span></div>
+  </section>
+
+  <div class="row" style="margin: 0 0 12px">
+    <span class="summary" id="summary">Found: 0</span>
+    <span class="spacer"></span>
+    <button id="btn-csv">Export CSV</button>
+    <button id="btn-json">Export JSON</button>
+    <button id="btn-copy-all">Copy all</button>
+    <span class="toast" id="toast"></span>
+  </div>
+  <div class="grid" id="grid"></div>
+</main>
+<footer>
+  <div class="wrap">
+    <a id="gh-link" href="#">Source code on GitHub</a> · Open source (MIT), download and run locally
+  </div>
+</footer>
+
+<script>
+const CONFIG = {
+  github: "https://github.com/ravigaming222/ioc-extractor",
+  home: "/"
+};
+
+// ===== IOC-LOGIC-START (pure logic, no DOM; tested from Node) =====
+const FILE_EXTS = new Set([
+  "exe","dll","js","php","pdf","zip","png","jpg","jpeg","gif","bmp","svg","ico","css","html","htm",
+  "txt","doc","docx","xls","xlsx","ppt","pptx","rar","7z","gz","tar","bat","cmd","ps1","vbs","jar",
+  "msi","sys","lnk","iso","dat","log","tmp","bin","json","xml","csv","yml","yaml","ini","cfg","conf",
+  "asp","aspx","jsp","cgi","docm","xlsm","scr","dmp","bak","swf","mp3","mp4","avi"
+]);
+
+const TYPES = ["urls","domains","ipv4","ipv6","emails","md5","sha1","sha256","cve"];
+
+function refang(text) {
+  const tt = (m) => m.replace(/x/g, "t").replace(/X/g, "T"); // keeps letter case
+  return String(text)
+    .replace(/\bhxxps?\b/gi, tt)
+    .replace(/\bfxp\b/gi, tt)
+    .replace(/\[:\/\/\]/g, "://")
+    .replace(/\[:\]/g, ":")
+    .replace(/\[\.\]|\(\.\)|\{\.\}|\[dot\]|\(dot\)|\{dot\}/gi, ".")
+    .replace(/\[@\]|\(at\)|\[at\]/gi, "@");
+}
+
+function toIPv4Parts(ip) { return ip.split(".").map(Number); }
+
+function isPrivateIPv4(ip) {
+  const [a, b] = toIPv4Parts(ip);
+  return a === 10 || a === 127 || a === 0 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 169 && b === 254);
+}
+
+function validIPv6(s) {
+  if (!/^[0-9a-f:]+$/i.test(s) || !/[0-9a-f]/i.test(s) || s.includes(":::")) return false;
+  const halves = s.split("::");
+  if (halves.length > 2) return false;
+  const groups = (h) => (h === "" ? [] : h.split(":"));
+  const ok = (g) => g.every((x) => /^[0-9a-f]{1,4}$/i.test(x));
+  if (halves.length === 2) {
+    const all = groups(halves[0]).concat(groups(halves[1]));
+    return all.length <= 7 && ok(all);
+  }
+  const all = s.split(":");
+  return all.length === 8 && ok(all);
+}
+
+function trimUrl(u) {
+  const pairs = { ")": "(", "]": "[", "}": "{" };
+  for (;;) {
+    const last = u[u.length - 1];
+    if (last && ".,;:!?'\"<>*".includes(last)) { u = u.slice(0, -1); continue; }
+    if (last && pairs[last]) {
+      const open = u.split(pairs[last]).length - 1;
+      const close = u.split(last).length - 1;
+      if (close > open) { u = u.slice(0, -1); continue; }
+    }
+    return u;
+  }
+}
+
+function urlHost(u) {
+  const m = /^[a-z]+:\/\/([^\/?#]*)/i.exec(u);
+  if (!m) return "";
+  let h = m[1].replace(/^.*@/, "");
+  if (h[0] === "[") return "";
+  return h.replace(/:\d*$/, "");
+}
+
+function uniq(arr) { return Array.from(new Set(arr)); }
+
+function extract(text, opts) {
+  const o = opts || {};
+  const t = refang(text);
+  const res = {};
+  TYPES.forEach((k) => { res[k] = []; });
+
+  // URLs
+  const urlRe = /\b(?:https?|ftp):\/\/[^\s<>"'`]+/gi;
+  const urls = (t.match(urlRe) || []).map(trimUrl).filter((u) => /:\/\/./.test(u));
+  res.urls = uniq(urls);
+
+  // Emails
+  const emailRe = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,24}(?![A-Za-z0-9-])/g;
+  res.emails = uniq((t.match(emailRe) || []).map((e) => e.toLowerCase()));
+
+  // IPv4
+  const ipRe = /(?<![\w.])(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?!\d|\.\d)(?![\w])/g;
+  let ips = uniq(t.match(ipRe) || []);
+  if (o.hidePrivate) ips = ips.filter((ip) => !isPrivateIPv4(ip));
+  res.ipv4 = ips;
+
+  // IPv6 (simplified)
+  const v6Re = /(?<![\w:.])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}(?![\w:])/gi;
+  res.ipv6 = uniq((t.match(v6Re) || []).filter(validIPv6).map((x) => x.toLowerCase()));
+
+  // Domains: URL paths are cut off so that only hosts are scanned
+  const hostText = t.replace(urlRe, (m) => " " + urlHost(trimUrl(m)) + " ");
+  const domRe = /(?<![\w.-])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+([a-z]{2,24})(?![\w-])/gi;
+  const doms = [];
+  let m;
+  while ((m = domRe.exec(hostText))) {
+    const tld = m[1].toLowerCase();
+    const d = m[0].toLowerCase();
+    if (/^\d+$/.test(tld) || FILE_EXTS.has(tld)) continue;
+    if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(d)) continue;
+    doms.push(d);
+  }
+  res.domains = uniq(doms);
+
+  // Hashes (lookarounds: never cut pieces out of longer hex strings)
+  const hash = (n) => uniq((t.match(new RegExp("(?<![0-9a-f])[0-9a-f]{" + n + "}(?![0-9a-f])", "gi")) || []).map((h) => h.toLowerCase()));
+  res.md5 = hash(32);
+  res.sha1 = hash(40);
+  res.sha256 = hash(64);
+
+  // CVE
+  res.cve = uniq((t.match(/\bCVE-\d{4}-\d{4,7}\b/gi) || []).map((c) => c.toUpperCase()));
+  return res;
+}
+
+function defangValue(value, type) {
+  const v = String(value);
+  switch (type) {
+    case "urls":
+      return v
+        .replace(/^(?:https?|ftp)(?=:)/i, (m) => m.replace(/tt/, "xx").replace(/TT/, "XX").replace(/t/, "x").replace(/T/, "X"))
+        .replace("://", "[://]")
+        .replace(/\./g, "[.]");
+    case "domains":
+    case "ipv4":
+      return v.replace(/\./g, "[.]");
+    case "ipv6":
+      return v.replace(/:/g, "[:]");
+    case "emails":
+      return v.replace(/@/g, "[@]").replace(/\./g, "[.]");
+    default:
+      return v;
+  }
+}
+
+function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\\/]/g, "\\$&"); }
+
+function defangText(text) {
+  const t = refang(text);
+  const found = extract(t, { hidePrivate: false });
+  const items = [];
+  ["urls", "domains", "ipv4", "ipv6", "emails"].forEach((type) => {
+    found[type].forEach((value) => items.push({ value, type }));
+  });
+  // longest first, replaced through markers so replacements never overlap
+  items.sort((a, b) => b.value.length - a.value.length);
+  const repl = [];
+  let out = t;
+  items.forEach(({ value, type }) => {
+    const body = escapeRe(value);
+    const re = type === "urls"
+      ? new RegExp(body, "gi")
+      : new RegExp("(?<![A-Za-z0-9_-])" + body + "(?![A-Za-z0-9_-])" + (type === "ipv4" ? "(?!\\.\\d)" : ""), "gi");
+    out = out.replace(re, (m) => {
+      repl.push(defangValue(m, type));
+      return "\u0001" + (repl.length - 1) + "\u0002";
+    });
+  });
+  return out.replace(/\u0001(\d+)\u0002/g, (_, i) => repl[Number(i)]);
+}
+// ===== IOC-LOGIC-END =====
+
+// ===== UI =====
+(function () {
+  const LABELS = {
+    urls: "URL", domains: "Domains", ipv4: "IPv4", ipv6: "IPv6", emails: "E-mail",
+    md5: "MD5", sha1: "SHA-1", sha256: "SHA-256", cve: "CVE"
+  };
+  const SAMPLE = [
+    "Incident report (demo)",
+    "",
+    "The user received an email from billing-support[@]secure-mail[.]top with a link hxxps://login-update[.]example-bank[.]xyz/auth/verify.php?id=42.",
+    "The loader downloaded hxxp://185[.]220[.]101[.]45:8080/payload.exe and contacted the C2 evil-cdn(.)net and 91.214.124[.]7.",
+    "Internal addresses 192.168.1.15 and 10.0.0.7 are not related to the incident. IPv6 C2: 2001:db8:85a3::8a2e:370:7334.",
+    "",
+    "Hashes:",
+    "MD5: 44d88612fea8a8f36de82e1278abb02f",
+    "SHA-1: 3395856ce81f2b7382dee72602f798b642f14140",
+    "SHA-256: 275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f",
+    "",
+    "CVE-2021-44228 (Log4Shell) is exploited, see also CVE-2023-23397.",
+    "Contact: soc[at]example[dot]org"
+  ].join("\n");
+
+  const $ = (id) => document.getElementById(id);
+  const input = $("input"), grid = $("grid");
+  $("home-link").href = CONFIG.home;
+  $("gh-link").href = CONFIG.github;
+
+  let current = null; // { type: [values to display] }
+
+  function compute() {
+    const raw = extract(input.value, { hidePrivate: $("opt-private").checked });
+    const defanged = $("opt-defanged").checked;
+    const view = {};
+    TYPES.forEach((k) => { view[k] = defanged ? raw[k].map((v) => defangValue(v, k)) : raw[k]; });
+    return view;
+  }
+
+  function flash(el, msg) {
+    el.textContent = msg;
+    setTimeout(() => { el.textContent = ""; }, 1500);
+  }
+
+  async function copy(text, toastEl) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch (e2) { /* ignore */ }
+      document.body.removeChild(ta);
+    }
+    flash(toastEl, "Copied");
+  }
+
+  function render() {
+    current = compute();
+    grid.textContent = "";
+    let total = 0;
+    TYPES.forEach((k) => {
+      const vals = current[k];
+      total += vals.length;
+      const card = document.createElement("section");
+      card.className = "card" + (vals.length ? "" : " empty");
+      const h = document.createElement("h2");
+      const title = document.createElement("span"); title.textContent = LABELS[k];
+      const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = String(vals.length);
+      const sp = document.createElement("span"); sp.className = "spacer";
+      const btn = document.createElement("button"); btn.textContent = "Copy"; btn.disabled = !vals.length;
+      const toast = document.createElement("span"); toast.className = "toast";
+      btn.addEventListener("click", () => copy(vals.join("\n"), toast));
+      h.append(title, badge, sp, toast, btn);
+      const ul = document.createElement("ul"); ul.className = "list";
+      if (!vals.length) {
+        const li = document.createElement("li"); li.className = "none"; li.textContent = "Nothing found"; ul.appendChild(li);
+      } else {
+        vals.forEach((v) => { const li = document.createElement("li"); li.textContent = v; ul.appendChild(li); });
+      }
+      card.append(h, ul);
+      grid.appendChild(card);
+    });
+    $("summary").textContent = "Found: " + total;
+    ["btn-csv", "btn-json", "btn-copy-all"].forEach((id) => { $(id).disabled = total === 0; });
+  }
+
+  function csvCell(v) { return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+
+  function download(name, mime, content) {
+    const url = URL.createObjectURL(new Blob([content], { type: mime }));
+    const a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function showOut(title, text) {
+    $("out-panel").hidden = false;
+    $("out-title").textContent = title;
+    $("out-text").value = text;
+  }
+
+  input.addEventListener("input", render);
+  $("opt-private").addEventListener("change", render);
+  $("opt-defanged").addEventListener("change", render);
+  $("btn-sample").addEventListener("click", () => { input.value = SAMPLE; render(); });
+  $("btn-clear").addEventListener("click", () => {
+    input.value = ""; $("out-text").value = ""; $("out-panel").hidden = true; render();
+  });
+  $("btn-defang").addEventListener("click", () => showOut("Result: Defang text", defangText(input.value)));
+  $("btn-refang").addEventListener("click", () => showOut("Result: Refang text", refang(input.value)));
+  $("btn-copy-out").addEventListener("click", () => copy($("out-text").value, $("toast-out")));
+  $("btn-copy-all").addEventListener("click", () => {
+    const parts = [];
+    TYPES.forEach((k) => { if (current[k].length) parts.push("# " + LABELS[k] + "\n" + current[k].join("\n")); });
+    copy(parts.join("\n\n"), $("toast"));
+  });
+  $("btn-csv").addEventListener("click", () => {
+    const rows = ["type,value"];
+    TYPES.forEach((k) => current[k].forEach((v) => rows.push(k + "," + csvCell(v))));
+    download("iocs.csv", "text/csv;charset=utf-8", rows.join("\r\n") + "\r\n");
+  });
+  $("btn-json").addEventListener("click", () => {
+    download("iocs.json", "application/json", JSON.stringify(current, null, 2) + "\n");
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
