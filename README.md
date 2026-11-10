@@ -12,6 +12,10 @@ Offline single-file IOC extractor for SOC analysts: paste a report, email or log
 - Export: CSV (`type,value`), JSON, copy all, copy per category. Exports reflect what is shown on screen (with the options applied).
 - "Sample" and "Clear" buttons.
 
+## Live demo
+
+https://ravigaming222.github.io/ioc-extractor/ (runs entirely in your browser, same single file).
+
 ## Download
 
 Latest release: https://github.com/ravigaming222/ioc-extractor/releases/latest
