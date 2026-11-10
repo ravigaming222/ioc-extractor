@@ -1,0 +1,10 @@
+{
+  "name": "ioc-extractor",
+  "version": "1.0.0",
+  "description": "Offline IOC extractor for SOC analysts: a single self-contained HTML file.",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/"
+  }
+}
